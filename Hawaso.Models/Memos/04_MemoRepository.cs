@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace MemoApp.Models
+namespace Hawaso.Models
 {
     /// <summary>
     /// [4] Repository Class: ADO.NET or Dapper(Micro ORM) or Entity Framework Core(ORM)
@@ -42,6 +42,8 @@ namespace MemoApp.Models
             model.RefOrder = 0; // 참조(그룹) 순서
             #endregion
 
+            model.Created = DateTime.UtcNow;
+
             try
             {
                 _context.Memos.Add(model);
@@ -70,7 +72,7 @@ namespace MemoApp.Models
 
         #region [4][3] 상세: GetByIdAsync
         //[4][3] 상세: GetByIdAsync
-        public async Task<Memo> GetByIdAsync(int id)
+        public async Task<Memo> GetByIdAsync(long id)
         {
             var model = await _context.Memos
                 //.Include(m => m.MemosComments)
@@ -79,7 +81,14 @@ namespace MemoApp.Models
             // ReadCount++
             if (model != null)
             {
-                model.ReadCount = model.ReadCount + 1;
+                if (model.ReadCount != null)
+                {
+                    model.ReadCount = model.ReadCount + 1;
+                }
+                else
+                {
+                    model.ReadCount = 1; 
+                }
                 _context.Memos.Attach(model);
                 _context.Entry(model).State = EntityState.Modified;
                 _context.SaveChanges();
@@ -95,6 +104,8 @@ namespace MemoApp.Models
         {
             try
             {
+                model.ModifyDate = DateTime.Now;
+
                 _context.Memos.Attach(model);
                 _context.Entry(model).State = EntityState.Modified;
                 return (await _context.SaveChangesAsync() > 0 ? true : false);
@@ -110,9 +121,23 @@ namespace MemoApp.Models
         {
             try
             {
-                //_context.Memos.Attach(model);
-                //_context.Entry(model).State = EntityState.Modified;
-                _context.Update(model);
+                var old = _context.Memos.Find(model.Id);
+
+                old.Name = model.Name;
+                old.Email = model.Email;
+                old.Homepage = model.Homepage;
+                old.Title = model.Title;
+                old.Content = model.Content;
+                old.IsPinned = model.IsPinned;
+                old.Encoding = model.Encoding; 
+
+                // TODO: 더 넣을 항목 처리: 이 부분은 어떻게 처리하는게 가장 좋은지 고민
+                // - Repository에서는 전체 업데이트
+                // - Service에서는 부분 업데이트
+
+                old.Modified = DateTimeOffset.UtcNow;
+
+                _context.Update(old);
                 return (await _context.SaveChangesAsync() > 0 ? true : false);
             }
             catch (Exception e)
@@ -126,7 +151,7 @@ namespace MemoApp.Models
 
         #region [4][5] 삭제: DeleteAsync
         //[4][5] 삭제
-        public async Task<bool> DeleteAsync(int id)
+        public async Task<bool> DeleteAsync(long id)
         {
             //var model = await _context.Memos.SingleOrDefaultAsync(m => m.Id == id);
             try
@@ -167,7 +192,9 @@ namespace MemoApp.Models
             int pageSize,
             int parentId)
         {
-            var totalRecords = await _context.Memos.Where(m => m.ParentId == parentId).CountAsync();
+            var totalRecords = await _context.Memos
+                .Where(m => m.ParentId == parentId)
+                .CountAsync();
             var models = await _context.Memos
                 .Where(m => m.ParentId == parentId)
                 .OrderByDescending(m => m.Id)
@@ -182,8 +209,12 @@ namespace MemoApp.Models
         //[4][8] 상태
         public async Task<Tuple<int, int>> GetStatus(int parentId)
         {
-            var totalRecords = await _context.Memos.Where(m => m.ParentId == parentId).CountAsync();
-            var pinnedRecords = await _context.Memos.Where(m => m.ParentId == parentId && m.IsPinned == true).CountAsync();
+            var totalRecords = await _context.Memos
+                .Where(m => m.ParentId == parentId)
+                .CountAsync();
+            var pinnedRecords = await _context.Memos
+                .Where(m => m.ParentId == parentId && m.IsPinned == true)
+                .CountAsync();
 
             return new Tuple<int, int>(pinnedRecords, totalRecords); // (2, 10)
         }
@@ -193,7 +224,9 @@ namespace MemoApp.Models
         {
             try
             {
-                var models = await _context.Memos.Where(m => m.ParentId == parentId).ToListAsync();
+                var models = await _context.Memos
+                    .Where(m => m.ParentId == parentId)
+                    .ToListAsync();
 
                 foreach (var model in models)
                 {
@@ -238,10 +271,12 @@ namespace MemoApp.Models
             string searchQuery,
             int parentId)
         {
-            var totalRecords = await _context.Memos.Where(m => m.ParentId == parentId)
+            var totalRecords = await _context.Memos
+                .Where(m => m.ParentId == parentId)
                 .Where(m => EF.Functions.Like(m.Name, $"%{searchQuery}%") || m.Title.Contains(searchQuery) || m.Title.Contains(searchQuery))
                 .CountAsync();
-            var models = await _context.Memos.Where(m => m.ParentId == parentId)
+            var models = await _context.Memos
+                .Where(m => m.ParentId == parentId)
                 .Where(m => m.Name.Contains(searchQuery) || m.Title.Contains(searchQuery) || m.Title.Contains(searchQuery))
                 .OrderByDescending(m => m.Id)
                 //.Include(m => m.MemosComments)
@@ -267,13 +302,15 @@ namespace MemoApp.Models
             {
                 // 현재 달부터 12개월 전까지 반복
                 var current = DateTime.Now.AddMonths(-i);
-                var cnt = _context.Memos.AsEnumerable().Where(
-                    m => m.Created != null
-                    &&
-                    Convert.ToDateTime(m.Created).Month == current.Month
-                    &&
-                    Convert.ToDateTime(m.Created).Year == current.Year
-                ).ToList().Count();
+                var cnt = _context.Memos.AsEnumerable()
+                    .Where(
+                        m => m.Created != null
+                        &&
+                        Convert.ToDateTime(m.Created).Month == current.Month
+                        &&
+                        Convert.ToDateTime(m.Created).Year == current.Year
+                    )
+                    .ToList().Count();
                 createCounts[current.Month] = cnt;
             }
 
@@ -286,11 +323,12 @@ namespace MemoApp.Models
             int pageSize,
             string parentKey)
         {
-            var totalRecords = await _context.Memos.Where(m => m.ParentKey == parentKey).CountAsync();
+            var totalRecords = await _context.Memos
+                .Where(m => m.ParentKey == parentKey)
+                .CountAsync();
             var models = await _context.Memos
                 .Where(m => m.ParentKey == parentKey)
                 .OrderByDescending(m => m.Id)
-                //.Include(m => m.MemosComments)
                 .Skip(pageIndex * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
@@ -305,13 +343,14 @@ namespace MemoApp.Models
             string searchQuery,
             string parentKey)
         {
-            var totalRecords = await _context.Memos.Where(m => m.ParentKey == parentKey)
+            var totalRecords = await _context.Memos
+                .Where(m => m.ParentKey == parentKey)
                 .Where(m => EF.Functions.Like(m.Name, $"%{searchQuery}%") || m.Title.Contains(searchQuery) || m.Title.Contains(searchQuery))
                 .CountAsync();
-            var models = await _context.Memos.Where(m => m.ParentKey == parentKey)
+            var models = await _context.Memos
+                .Where(m => m.ParentKey == parentKey)
                 .Where(m => m.Name.Contains(searchQuery) || m.Title.Contains(searchQuery) || m.Title.Contains(searchQuery))
                 .OrderByDescending(m => m.Id)
-                //.Include(m => m.MemosComments)
                 .Skip(pageIndex * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
@@ -330,7 +369,10 @@ namespace MemoApp.Models
         {
             //var items = from m in _context.Memos select m; // 쿼리 구문(Query Syntax)
             //var items = _context.Memos.Select(m => m); // 메서드 구문(Method Syntax)
-            var items = _context.Memos.AsQueryable();
+            var items = 
+                _context.Memos
+                    //.Include(me => me.Comments)
+                    .AsQueryable();
 
             #region ParentBy: 특정 부모 키 값(int, string)에 해당하는 리스트인지 확인
             // ParentBy 
@@ -351,17 +393,20 @@ namespace MemoApp.Models
                 if (searchField == "Name")
                 {
                     // Name
-                    items = items.Where(m => m.Name.Contains(searchQuery));
+                    items = items
+                        .Where(m => m.Name.Contains(searchQuery));
                 }
                 else if (searchField == "Title")
                 {
                     // Title
-                    items = items.Where(m => m.Title.Contains(searchQuery));
+                    items = items
+                        .Where(m => m.Title.Contains(searchQuery));
                 }
                 else
                 {
                     // All: 기타 더 검색이 필요한 컬럼이 있다면 추가 가능
-                    items = items.Where(m => m.Name.Contains(searchQuery) || m.Title.Contains(searchQuery));
+                    items = items
+                        .Where(m => m.Name.Contains(searchQuery) || m.Title.Contains(searchQuery));
                 }
             } 
             #endregion
@@ -374,24 +419,32 @@ namespace MemoApp.Models
             switch (sortOrder)
             {
                 case "Name":
-                    //items = items.OrderBy(m => m.Name);
-                    items = items.OrderBy(m => m.Name).ThenByDescending(m => m.Ref).ThenBy(m => m.RefOrder);
+                    items = items
+                        .OrderBy(m => m.Name).ThenByDescending(m => m.Ref).ThenBy(m => m.RefOrder);
                     break;
                 case "NameDesc":
-                    //items = items.OrderByDescending(m => m.Name);
-                    items = items.OrderByDescending(m => m.Name).ThenByDescending(m => m.Ref).ThenBy(m => m.RefOrder);
+                    items = items
+                        .OrderByDescending(m => m.Name).ThenByDescending(m => m.Ref).ThenBy(m => m.RefOrder);
                     break;
                 case "Title":
-                    //items = items.OrderBy(m => m.Title);
-                    items = items.OrderBy(m => m.Title).ThenByDescending(m => m.Ref).ThenBy(m => m.RefOrder);
+                    items = items
+                        .OrderBy(m => m.Title).ThenByDescending(m => m.Ref).ThenBy(m => m.RefOrder);
                     break;
                 case "TitleDesc":
-                    //items = items.OrderByDescending(m => m.Title);
-                    items = items.OrderByDescending(m => m.Title).ThenByDescending(m => m.Ref).ThenBy(m => m.RefOrder);
+                    items = items
+                        .OrderByDescending(m => m.Title).ThenByDescending(m => m.Ref).ThenBy(m => m.RefOrder);
+                    break;
+                case "Create":
+                    items = items
+                        .OrderBy(m => m.Created).ThenByDescending(m => m.Ref).ThenBy(m => m.RefOrder);
+                    break;
+                case "CreateDesc":
+                    items = items
+                        .OrderByDescending(m => m.Created).ThenByDescending(m => m.Ref).ThenBy(m => m.RefOrder);
                     break;
                 default:
-                    //items = items.OrderByDescending(m => m.Id); 
-                    items = items.OrderByDescending(m => m.Ref).ThenBy(m => m.RefOrder);
+                    items = items
+                        .OrderByDescending(m => m.Ref).ThenBy(m => m.RefOrder);
                     break;
             } 
             #endregion
@@ -399,7 +452,7 @@ namespace MemoApp.Models
             // Paging
             items = items.Skip(pageIndex * pageSize).Take(pageSize);
 
-            return new ArticleSet<Memo, int>(await items.ToListAsync(), totalCount);
+            return new ArticleSet<Memo, int>(await items.AsNoTracking().ToListAsync(), totalCount);
         }
 
         //[4][16] 답변: ReplyApp
@@ -407,7 +460,9 @@ namespace MemoApp.Models
         {
             #region 답변 관련 기능 추가된 영역
             // 비집고 들어갈 자리: 부모글 순서보다 큰 글이 있다면(기존 답변 글이 있다면) 해당 글의 순서를 모두 1씩 증가 
-            var replys = await _context.Memos.Where(m => m.Ref == parentRef && m.RefOrder > parentRefOrder).ToListAsync();
+            var replys = await _context.Memos
+                .Where(m => m.Ref == parentRef && m.RefOrder > parentRefOrder)
+                .ToListAsync();
             foreach (var item in replys)
             {
                 item.RefOrder = item.RefOrder + 1;
@@ -427,6 +482,8 @@ namespace MemoApp.Models
             model.Step = parentStep + 1; // 어떤 글의 답변 글이기에 들여쓰기 1 증가 
             model.RefOrder = parentRefOrder + 1; // 부모글의 바로 다음번 순서로 보여지도록 설정 
             #endregion
+
+            model.Created = DateTime.UtcNow;
 
             try
             {
@@ -505,8 +562,10 @@ namespace MemoApp.Models
             model.RefOrder = (maxRefOrder + maxAnswerNum + 1); // 부모글의 바로 다음번 순서로 보여지도록 설정 
 
             model.ParentNum = parentId;
-            model.AnswerNum = 0; 
+            model.AnswerNum = 0;
             #endregion
+
+            model.Created = DateTime.UtcNow;
 
             try
             {
@@ -551,25 +610,27 @@ namespace MemoApp.Models
                 // Search Mode
                 if (!string.IsNullOrEmpty(options.SearchQuery))
                 {
+                    var searchQuery = options.SearchQuery; // 검색어
+
                     if (options.SearchField == "Name")
                     {
                         // Name
-                        items = items.Where(m => m.Name.Contains(options.SearchQuery));
+                        items = items.Where(m => m.Name.Contains(searchQuery));
                     }
                     else if (options.SearchField == "Title")
                     {
                         // Title
-                        items = items.Where(m => m.Title.Contains(options.SearchQuery));
+                        items = items.Where(m => m.Title.Contains(searchQuery));
                     }
                     else if (options.SearchField == "Content")
                     {
                         // Title
-                        items = items.Where(m => m.Content.Contains(options.SearchQuery));
+                        items = items.Where(m => m.Content.Contains(searchQuery));
                     }
                     else
                     {
                         // All: 기타 더 검색이 필요한 컬럼이 있다면 추가 가능
-                        items = items.Where(m => m.Name.Contains(options.SearchQuery) || m.Title.Contains(options.SearchQuery) || m.Content.Contains(options.SearchQuery));
+                        items = items.Where(m => m.Name.Contains(searchQuery) || m.Title.Contains(searchQuery) || m.Content.Contains(searchQuery));
                     }
                 }
             }
@@ -614,7 +675,7 @@ namespace MemoApp.Models
             // Paging
             items = items.Skip(options.PageIndex * options.PageSize).Take(options.PageSize);
 
-            return new ArticleSet<Memo, long>(await items.ToListAsync(), totalCount);
+            return new ArticleSet<Memo, long>(await items.AsNoTracking().ToListAsync(), totalCount);
         }
         #endregion
 

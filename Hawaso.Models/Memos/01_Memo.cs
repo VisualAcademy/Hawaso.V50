@@ -2,7 +2,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace MemoApp.Models
+namespace Hawaso.Models
 {
     /// <summary>
     /// [!] 기본 클래스: 공통 속성들을 모두 모아 놓은 만능 모델 클래스
@@ -29,6 +29,7 @@ namespace MemoApp.Models
         /// </summary>
         public string ParentKey { get; set; }
 
+        #region Auditable
         /// <summary>
         /// 등록자: CreatedBy, Creator
         /// </summary>
@@ -38,7 +39,7 @@ namespace MemoApp.Models
         /// [5] 등록일(생성일): Created
         /// DateTime? 또는 DateTimeOffset? 
         /// </summary>        
-        public DateTime? Created { get; set; } 
+        public DateTimeOffset? Created { get; set; }
 
         /// <summary>
         /// 수정자: LastModifiedBy, ModifiedBy
@@ -48,7 +49,8 @@ namespace MemoApp.Models
         /// <summary>
         /// 수정일: LastModified, Modified
         /// </summary>
-        public DateTime? Modified { get; set; }
+        public DateTimeOffset? Modified { get; set; } 
+        #endregion
 
         #region [0] 5W1H: 누가, 언제, 어디서, 무엇을, 어떻게, 왜
         /// <summary>
@@ -64,7 +66,7 @@ namespace MemoApp.Models
         /// 작성일
         /// </summary>
         [Display(Name = "작성일")]
-        public DateTime PostDate { get; set; }
+        public DateTime? PostDate { get; set; }
 
         /// <summary>
         /// 작성지 IP 주소
@@ -99,7 +101,7 @@ namespace MemoApp.Models
         /// <summary>
         /// 작성자 이메일
         /// </summary>
-        [EmailAddress(ErrorMessage = "* 이메일을 정확히 입력하세요.")]
+        //[EmailAddress(ErrorMessage = "* 이메일을 정확히 입력하세요.")]
         public string Email { get; set; }
 
         /// <summary>
@@ -113,7 +115,7 @@ namespace MemoApp.Models
         /// 조회수
         /// </summary>
         [Display(Name = "조회수")]
-        public int ReadCount { get; set; }
+        public int? ReadCount { get; set; }
 
         /// <summary>
         /// 인코딩: Text, HTML, Mixed
@@ -143,7 +145,7 @@ namespace MemoApp.Models
         /// 댓글수 
         /// </summary>
         [Display(Name = "댓글수")]
-        public int CommentCount { get; set; }
+        public int? CommentCount { get; set; }
 
         /// <summary>
         /// 상단 고정: 공지글로 올리기, IsActive
@@ -162,13 +164,13 @@ namespace MemoApp.Models
         /// 파일크기
         /// </summary>
         [Display(Name = "파일크기")]
-        public int FileSize { get; set; }
+        public int? FileSize { get; set; }
 
         /// <summary>
         /// 다운수 
         /// </summary>
         [Display(Name = "다운수")]
-        public int DownCount { get; set; }
+        public int? DownCount { get; set; }
         #endregion
 
         #region 답변형 게시판 관련 주요 속성

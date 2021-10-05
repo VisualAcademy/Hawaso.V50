@@ -57,13 +57,14 @@ namespace Hawaso.Controllers
         /// </summary>
         public int TotalRecordCount { get; set; } = 0;
 
+        #region Index: 게시판 리스트 페이지
         /// <summary>
         /// 게시판 리스트 페이지
         /// </summary>
         public IActionResult Index()
         {
             // 로깅
-            _logger.LogInformation("게시판 리스트 페이지 로딩"); 
+            _logger.LogInformation("게시판 리스트 페이지 로딩");
 
             // 검색 모드 결정: ?SearchField=Name&SearchQuery=닷넷코리아 
             SearchMode = (
@@ -119,10 +120,10 @@ namespace Hawaso.Controllers
 
             // 주요 정보를 뷰 페이지로 전송
             ViewBag.TotalRecord = TotalRecordCount;
-            ViewBag.SearchMode  = SearchMode;
+            ViewBag.SearchMode = SearchMode;
             ViewBag.SearchField = SearchField;
             ViewBag.SearchQuery = SearchQuery;
-            
+
             // 페이저 컨트롤 적용
             ViewBag.PageModel = new PagerBase
             {
@@ -135,10 +136,12 @@ namespace Hawaso.Controllers
                 SearchField = SearchField,
                 SearchQuery = SearchQuery
             };
-            
+
             return View(notes);
         }
+        #endregion
 
+        #region Create: 게시판 글쓰기 페이지 
         /// <summary>
         /// 게시판 글쓰기 폼
         /// </summary>
@@ -192,16 +195,18 @@ namespace Hawaso.Controllers
 
             Note note = new Note();
 
-            note.Name     = model.Name;
-            note.Email    = Dul.HtmlUtility.Encode(model.Email);
+            note.Name = model.Name;
+            note.Email = Dul.HtmlUtility.Encode(model.Email);
             note.Homepage = model.Homepage;
             //note.Title    = Dul.HtmlUtility.Encode(model.Title);
-            note.Title    = model.Title;
-            note.Content  = model.Content;
+            note.Title = model.Title;
+            note.Content = model.Content;
             note.FileName = fileName;
             note.FileSize = fileSize;
-            note.Password = (new Dul.Security.CryptorEngine()).EncryptPassword(model.Password);
-            note.PostIp = HttpContext.Connection.RemoteIpAddress.ToString(); // IP 주소
+            note.Password = (new Dul.Security.CryptorEngine())
+                .EncryptPassword(model.Password);
+            note.PostIp =
+                HttpContext.Connection.RemoteIpAddress.ToString(); // IP 주소
             note.Encoding = model.Encoding;
 
             _repository.Add(note); // 데이터 저장
@@ -210,8 +215,8 @@ namespace Hawaso.Controllers
             TempData["Message"] = "데이터가 저장되었습니다.";
 
             return RedirectToAction("Index"); // 저장 후 리스트 페이지로 이동
-        }
-
+        } 
+        #endregion
 
         /// <summary>
         /// 게시판 파일 강제 다운로드 기능(/BoardDown/:Id)
@@ -236,13 +241,15 @@ namespace Hawaso.Controllers
                 {
                     byte[] fileBytes = System.IO.File.ReadAllBytes(Path.Combine(_environment.WebRootPath, "files") + "\\" + fileName);
 
-                    return File(fileBytes, "application/octet-stream", fileName);
+                    //return File(fileBytes, "application/octet-stream", fileName);
+                    return File(fileBytes, System.Net.Mime.MediaTypeNames.Application.Octet, fileName);
                 }
 
                 return null;
             }
         }
 
+        #region Details - 게시판의 상세 보기 페이지(Details, BoardView)
         /// <summary>
         /// 게시판의 상세 보기 페이지(Details, BoardView)
         /// </summary>
@@ -257,15 +264,15 @@ namespace Hawaso.Controllers
             string encodedContent = "";
             switch (encoding)
             {
-                // Text : 소스 그대로 표현
+                // Text : 소스 그대로 표현: text/plain, Plain-Text
                 case ContentEncodingType.Text:
                     encodedContent = Dul.HtmlUtility.EncodeWithTabAndSpace(note.Content);
                     break;
-                // Html : HTML 형식으로 출력
+                // Html : HTML 형식으로 출력: Text/HTML
                 case ContentEncodingType.Html:
                     encodedContent = note.Content; // 변환없음
                     break;
-                // Mixed : 엔터처리만
+                // Mixed : 엔터처리만: Mixed-Text
                 case ContentEncodingType.Mixed:
                     encodedContent = note.Content.Replace("\r\n", "<br />");
                     break;
@@ -275,7 +282,7 @@ namespace Hawaso.Controllers
                     break;
             }
             ViewBag.Content = encodedContent; //[!]
-            
+
             // 첨부된 파일 확인
             if (note.FileName.Length > 1)
             {
@@ -299,7 +306,8 @@ namespace Hawaso.Controllers
             ViewBag.CommentListAndId = vm;
 
             return View(note);
-        }
+        } 
+        #endregion
 
         /// <summary>
         /// 게시판 삭제 폼
@@ -311,14 +319,16 @@ namespace Hawaso.Controllers
             return View();
         }
 
+        #region 게시판 삭제 처리
         /// <summary>
         /// 게시판 삭제 처리
         /// </summary>
         [HttpPost]
-        public IActionResult Delete(int id, string Password)
+        public IActionResult Delete(int id, string password)
         {
             //if (_repository.DeleteNote(id, Password) > 0)
-            if (_repository.DeleteNote(id, (new Dul.Security.CryptorEngine()).EncryptPassword(Password)) > 0)
+            if (_repository.DeleteNote(id,
+                (new Dul.Security.CryptorEngine()).EncryptPassword(password)) > 0)
             {
                 TempData["Message"] = "데이터가 삭제되었습니다.";
 
@@ -342,15 +352,14 @@ namespace Hawaso.Controllers
             ViewBag.Id = id;
             return View();
         }
+        #endregion
 
         /// <summary>
         /// 게시판 삭제 완료 후 추가적인 처리할 때 페이지
         /// </summary>
-        public IActionResult DeleteCompleted()
-        {
-            return View();
-        }
+        public IActionResult DeleteCompleted() => View();
 
+        #region 수정
         /// <summary>
         /// 게시판 수정 폼
         /// </summary>
@@ -365,11 +374,11 @@ namespace Hawaso.Controllers
             var note = _repository.GetNoteById(id);
 
             // 첨부된 파일명 및 파일크기 기록
-            if (note.FileName.Length > 1)
+            if (note.FileName.Length > 0)
             {
                 ViewBag.FileName = note.FileName;
                 ViewBag.FileSize = note.FileSize;
-                ViewBag.FileNamePrevious = 
+                ViewBag.FileNamePrevious =
                     $"기존에 업로드된 파일명: {note.FileName}";
             }
             else
@@ -386,7 +395,7 @@ namespace Hawaso.Controllers
         /// </summary>
         [HttpPost]
         public async Task<IActionResult> Edit(
-            Note model, ICollection<IFormFile> files, 
+            Note model, ICollection<IFormFile> files,
             int id, string previousFileName = "", int previousFileSize = 0)
         {
             ViewBag.FormType = BoardWriteFormType.Modify;
@@ -423,19 +432,21 @@ namespace Hawaso.Controllers
                     }
                 }
             }
-            
+
             Note note = new Note();
 
             note.Id = id;
-            note.Name     = model.Name;
-            note.Email    = Dul.HtmlUtility.Encode(model.Email);
+            note.Name = model.Name;
+            //note.Email = Dul.HtmlUtility.Encode(model.Email);
+            note.Email = model.Email;
             note.Homepage = model.Homepage;
-            note.Title    = Dul.HtmlUtility.Encode(model.Title);
-            note.Content  = model.Content;
+            //note.Title = Dul.HtmlUtility.Encode(model.Title);
+            note.Title = model.Title;
+            note.Content = model.Content;
             note.FileName = fileName;
             note.FileSize = fileSize;
             note.Password = (new Dul.Security.CryptorEngine()).EncryptPassword(model.Password);
-            note.ModifyIp = 
+            note.ModifyIp =
                 HttpContext.Connection.RemoteIpAddress.ToString(); // IP 주소
             note.Encoding = model.Encoding;
 
@@ -447,11 +458,12 @@ namespace Hawaso.Controllers
             }
             else
             {
-                ViewBag.ErrorMessage = 
+                ViewBag.ErrorMessage =
                     "업데이트가 되지 않았습니다. 암호를 확인하세요.";
                 return View(note);
             }
-        }
+        } 
+        #endregion
 
         /// <summary>
         /// 답변 글쓰기 폼
@@ -590,6 +602,7 @@ namespace Hawaso.Controllers
             }
         }
 
+        #region CommentAdd: 댓글 입력 처리
         /// <summary>
         /// 댓글 입력
         /// </summary>
@@ -602,24 +615,26 @@ namespace Hawaso.Controllers
             NoteComment comment = new NoteComment();
             comment.BoardId = BoardId;
             comment.Name = txtName;
-            comment.Password = (new Dul.Security.CryptorEngine()).EncryptPassword(txtPassword);
+            comment.Password = 
+                (new Dul.Security.CryptorEngine()).EncryptPassword(txtPassword);
             comment.Opinion = txtOpinion;
 
             // 댓글 데이터 저장
             _commentRepository.AddNoteComment(comment);
-            
+
             // 댓글 저장 후 다시 게시판 상세 보기 페이지로 이동
             return RedirectToAction("Details", new { Id = BoardId });
-        }
+        } 
+        #endregion
 
         /// <summary>
         /// 댓글 삭제 폼
         /// </summary>
         [HttpGet]
-        public IActionResult CommentDelete(string BoardId, string Id)
+        public IActionResult CommentDelete(string boardId, string id)
         {
-            ViewBag.BoardId = BoardId;
-            ViewBag.Id = Id;
+            ViewBag.BoardId = boardId;
+            ViewBag.Id = id;
 
             return View();
         }
@@ -629,22 +644,22 @@ namespace Hawaso.Controllers
         /// </summary>
         [HttpPost]
         public IActionResult CommentDelete(
-            string BoardId, string Id, string txtPassword)
+            string boardId, string id, string txtPassword)
         {
             txtPassword = (new Dul.Security.CryptorEngine()).EncryptPassword(txtPassword);
             // 현재 삭제하려는 댓글의 암호가 맞으면, 삭제 진행
-            if (_commentRepository.GetCountBy(Convert.ToInt32(BoardId)
-                , Convert.ToInt32(Id), txtPassword) > 0)
+            if (_commentRepository.GetCountBy(Convert.ToInt32(boardId)
+                , Convert.ToInt32(id), txtPassword) > 0)
             {
                 // 삭제 처리
                 _commentRepository.DeleteNoteComment(
-                    Convert.ToInt32(BoardId), Convert.ToInt32(Id), txtPassword);
+                    Convert.ToInt32(boardId), Convert.ToInt32(id), txtPassword);
                 // 게시판 상세 보기 페이지로 이동
-                return RedirectToAction("Details", new { Id = BoardId });
+                return RedirectToAction("Details", new { Id = boardId });
             }
 
-            ViewBag.BoardId = BoardId;
-            ViewBag.Id = Id;
+            ViewBag.BoardId = boardId;
+            ViewBag.Id = id;
             ViewBag.ErrorMessage = "암호가 틀립니다. 다시 입력해주세요.";
 
             return View();
@@ -654,7 +669,7 @@ namespace Hawaso.Controllers
         /// 공지글로 올리기(관리자 전용)
         /// </summary>
         [HttpGet]
-        [Authorize("Administrators")]
+        [Authorize(Roles = "Administrators")]
         public IActionResult Pinned(int id)
         {
             // 공지사항(NOTICE)으로 올리기
@@ -666,6 +681,7 @@ namespace Hawaso.Controllers
         /// <summary>
         /// (참고) 최근 글 리스트 Web API 테스트 페이지
         /// </summary>
+        [Authorize(Roles = "Administrators")]
         public IActionResult NoteServiceDemo()
         {
             return View();
@@ -674,6 +690,7 @@ namespace Hawaso.Controllers
         /// <summary>
         /// (참고) 최근 댓글 리스트 Web API 테스트 페이지
         /// </summary>
+        [Authorize(Roles = "Administrators")]
         public IActionResult NoteCommentServiceDemo()
         {
             return View();
@@ -881,6 +898,5 @@ namespace Hawaso.Controllers
         //    }
         //}
         #endregion
-
     }
 }

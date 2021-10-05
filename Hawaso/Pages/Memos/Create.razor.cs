@@ -1,5 +1,5 @@
 ﻿using BlazorInputFile;
-using MemoApp.Models;
+using Hawaso.Models;
 using Microsoft.AspNetCore.Components;
 using System;
 using System.Linq;
@@ -101,7 +101,7 @@ namespace Hawaso.Pages.Memos
                     fileName = file.Name;
                     fileSize = Convert.ToInt32(file.Size);
 
-                    fileName = await FileStorageManagerInjector.UploadAsync(file.Data, file.Name, "", true);
+                    fileName = await FileStorageManagerInjector.UploadAsync(file.Data, file.Name, "Memos", true);
 
                     Model.FileName = fileName;
                     Model.FileSize = fileSize;
@@ -123,7 +123,7 @@ namespace Hawaso.Pages.Memos
             m.ParentNum = 0;
             m.AnswerNum = 0;
             m.CommentCount = 0;
-            m.Created = DateTime.Now;
+            m.Created = DateTime.UtcNow;
             m.CreatedBy = "";
             m.Category = "Free";
             m.AnswerNum = 0;
@@ -149,7 +149,8 @@ namespace Hawaso.Pages.Memos
                 await RepositoryReference.AddAsync(m);
             }
 
-            NavigationManagerInjector.NavigateTo("/Memos/Index");
+            // Manage 컴포넌트로 이동 
+            NavigationManagerInjector.NavigateTo("/Memos");
         }
 
         /// <summary>

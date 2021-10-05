@@ -1,4 +1,5 @@
-﻿using DotNetNote.Models;
+﻿using Blazored.Toast;
+using DotNetNote.Models;
 using DotNetNote.Services;
 using DotNetNote.Settings;
 using DotNetSaleCore.Models;
@@ -6,6 +7,7 @@ using Hawaso.Areas.Identity;
 using Hawaso.Data;
 using Hawaso.Models;
 using Hawaso.Models.CommonValues;
+using MachineTypeApp.Models;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -17,16 +19,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NoticeApp.Models;
+using ReplyApp.Managers;
+using ReplyApp.Models;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using MachineTypeApp.Models;
-using ReplyApp.Managers;
 using UploadApp.Models;
-using ReplyApp.Models;
-using Blazored.Toast;
-using MemoApp.Models;
-using MemoApp.Memos;
 using Zero.Models;
 
 namespace Hawaso
@@ -49,7 +47,7 @@ namespace Hawaso
 
             services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection"), options => options.EnableRetryOnFailure()));
 
-            #region 인증과 권한 설정
+            #region 인증과 권한 설정: ASP.NET Core Identity
             //[!] ApplicationUser 클래스로 사용자 관리, ApplicationRole 클래스로 역할 관리
             // ____ (IdentityUser 클래스와 IdentityRole 클래스가 기본값)
             services.AddIdentity<ApplicationUser, ApplicationRole>(
@@ -90,7 +88,7 @@ namespace Hawaso
                 //using Microsoft.AspNetCore.Authentication.Cookies;
                 options.ReturnUrlParameter = CookieAuthenticationDefaults.ReturnUrlParameter;
                 options.SlidingExpiration = true;
-            }); 
+            });
             #endregion
 
 
@@ -126,6 +124,10 @@ namespace Hawaso
 
             services.AddRazorPages();
             services.AddServerSideBlazor().AddCircuitOptions(options => { options.DetailedErrors = true; }); // 자세한 에러
+
+            //[1] HttpClient 사용하기 - 설정
+            services.AddHttpClient();
+
             services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<ApplicationUser>>();
             services.AddSingleton<WeatherForecastService>();
 
@@ -148,7 +150,7 @@ namespace Hawaso
             /// <summary>
             /// 공지사항(NoticeApp) 관련 의존성(종속성) 주입 관련 코드만 따로 모아서 관리 
             /// </summary>
-            services.AddDependencyInjectionContainerForNoticeApp(Configuration["ConnectionStrings:NoticeApp"]); // 또 다른 데이터베이스 연결 문자열 표현법
+            services.AddDependencyInjectionContainerForNoticeApp(Configuration["ConnectionStrings:DefaultConnection"]); // 또 다른 데이터베이스 연결 문자열 표현법
 
             // MachineTypeApp 관련 의존성(종속성) 주입 관련 코드만 따로 모아서 관리 
             services.AddDependencyInjectionContainerForMachineTypeApp(Configuration.GetConnectionString("DefaultConnection"));
@@ -156,7 +158,14 @@ namespace Hawaso
             AddDependencyInjectionContainerForUploadApp(services);
             AddDependencyInjectionContainerForReplyApp(services);
 
+
             services.AddTransient<IFileStorageManager, ReplyAppFileStorageManager>(); // Local Upload
+
+            //// Blazor Server에서 용량이 큰 파일 업로드 설정
+            //services.AddSignalR(e =>
+            //{
+            //    e.MaximumReceiveMessageSize = 102400000;
+            //});
         }
 
         private void AddDependencyInjectionContainerForUploadApp(IServiceCollection services)
@@ -178,8 +187,6 @@ namespace Hawaso
         /// </summary>
         private void AddDependencyInjectionContainerForDotNetSaleCore(IServiceCollection services)
         {
-            // DotNetSaleCoreDbContext.cs Inject: New DbContext Add
-            //services.AddEntityFrameworkSqlServer().AddDbContext<DotNetSaleCoreDbContext>(options => options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")), ServiceLifetime.Transient);
             services.AddDbContext<DotNetSaleCoreDbContext>(options => options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")), ServiceLifetime.Transient);
 
             // ICustomerRepositoryAsync.cs Inject: DI Container에 서비스(리포지토리) 등록
@@ -235,16 +242,20 @@ namespace Hawaso
             services.AddDependencyInjectionContainerForManufacturer(Configuration.GetConnectionString("DefaultConnection"));
             services.AddBlazoredToast(); // Blazored.Toast
 
+            // 부서 관리: 기본 CRUD 교과서 코드
+            services.AddDependencyInjectionContainerForDepartmentApp(Configuration.GetConnectionString("DefaultConnection"));
+
             /// <summary>
-            /// 메모앱(MemoApp) 관련 의존성(종속성) 주입 관련 코드만 따로 모아서 관리 
+            /// 메모앱(MemoApp) 관련 의존성(종속성) 주입 관련 코드만 따로 모아서 관리: 게시판 및 CRUD 관련 교과서 코드 
             /// </summary>
-            services.AddDependencyInjectionContainerForMemoApp(Configuration);
-            // 파일 업로드 및 다운로드 서비스(매니저) 등록
-            services.AddTransient<IMemoFileStorageManager, MemoFileStorageManager>(); // Local Upload
+            services.AddDependencyInjectionContainerForMemoApp(Configuration.GetConnectionString("DefaultConnection"));
 
             // Upload Feature
-            services.AddDiForLibries(Configuration.GetConnectionString("DefaultConnection"));            
+            services.AddDiForLibries(Configuration.GetConnectionString("DefaultConnection"));
             services.AddDiForBriefingLogs(Configuration.GetConnectionString("DefaultConnection"));
+
+            // Memos -> Archives
+            services.AddDependencyInjectionContainerForArchiveApp(Configuration.GetConnectionString("DefaultConnection"));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -273,7 +284,7 @@ namespace Hawaso
 
             #region CORS
             //[CORS][2] CORS 사용 허용
-            app.UseCors("AllowAnyOrigin"); 
+            app.UseCors("AllowAnyOrigin");
             #endregion
 
 
@@ -296,7 +307,7 @@ namespace Hawaso
                 //});
             });
 
-
+            // ASP.NET Core Identity 기본 사용자 및 역할 생성 
             CreateBuiltInUsersAndRoles(serviceProvider).Wait();
         }
 
@@ -319,15 +330,39 @@ namespace Hawaso
                 //[1][1] ('Administrators', '관리자 그룹', 'Group', '응용 프로그램을 총 관리하는 관리 그룹 계정')
                 //[1][2] ('Everyone', '전체 사용자 그룹', 'Group', '응용 프로그램을 사용하는 모든 사용자 그룹 계정')
                 //[1][3] ('Users', '일반 사용자 그룹', 'Group', '일반 사용자 그룹 계정')
-                //[1][4] ('Guests', '관리자 그룹', 'Group', '게스트 사용자 그룹 계정')
-                string[] roleNames = { "Administrators", "Everyone", "Users", "Guests", "Managers" };
-                foreach (var roleName in roleNames)
+                //[1][4] ('Guests', '게스트 그룹', 'Group', '게스트 사용자 그룹 계정')
+                //string[] roleNames = { Dul.Roles.Administrators.ToString(), Dul.Roles.Everyone.ToString(), Dul.Roles.Users.ToString(), Dul.Roles.Guests.ToString() };
+                //foreach (var roleName in roleNames)
+                //{
+                //    var roleExist = await roleManager.RoleExistsAsync(roleName);
+                //    if (!roleExist)
+                //    {
+                //        await roleManager.CreateAsync(new ApplicationRole { Name = roleName, NormalizedName = roleName.ToUpper(), Description = "" }); // 빌트인 그룹 생성
+                //    }
+                //}
+                //[1][1] Administrators
+                var administrators = new ApplicationRole { Name = Dul.Roles.Administrators.ToString(), NormalizedName = Dul.Roles.Administrators.ToString().ToUpper(), Description = "응용 프로그램을 총 관리하는 관리 그룹 계정" };
+                if (!(await roleManager.RoleExistsAsync(administrators.Name)))
                 {
-                    var roleExist = await roleManager.RoleExistsAsync(roleName);
-                    if (!roleExist)
-                    {
-                        await roleManager.CreateAsync(new ApplicationRole { Name = roleName, NormalizedName = roleName.ToUpper(), Description = "" }); // 빌트인 그룹 생성
-                    }
+                    await roleManager.CreateAsync(administrators); 
+                }
+                //[1][2] Everyone
+                var everyone = new ApplicationRole { Name = Dul.Roles.Everyone.ToString(), NormalizedName = Dul.Roles.Everyone.ToString().ToUpper(), Description = "응용 프로그램을 사용하는 모든 사용자 그룹 계정" };
+                if (!(await roleManager.RoleExistsAsync(everyone.Name)))
+                {
+                    await roleManager.CreateAsync(everyone);
+                }
+                //[1][3] Users
+                var users = new ApplicationRole { Name = Dul.Roles.Users.ToString(), NormalizedName = Dul.Roles.Users.ToString().ToUpper(), Description = "일반 사용자 그룹 계정" };
+                if (!(await roleManager.RoleExistsAsync(users.Name)))
+                {
+                    await roleManager.CreateAsync(users);
+                }
+                //[1][4] Guests
+                var guests = new ApplicationRole { Name = Dul.Roles.Guests.ToString(), NormalizedName = Dul.Roles.Guests.ToString().ToUpper(), Description = "게스트 사용자 그룹 계정" };
+                if (!(await roleManager.RoleExistsAsync(guests.Name)))
+                {
+                    await roleManager.CreateAsync(guests);
                 }
 
                 //[2] Users
@@ -372,41 +407,11 @@ namespace Hawaso
                     await userManager.CreateAsync(anonymous, "Pa$$w0rd");
                 }
 
-                //[2][4] User
-                // ('User', '일반사용자', 'User', '응용 프로그램에 로그인할 수 있는 사용자')
-                ApplicationUser user = await userManager.FindByEmailAsync($"user@{domainName}");
-                if (user == null)
-                {
-                    user = new ApplicationUser()
-                    {
-                        UserName = $"user@{domainName}",
-                        Email = $"user@{domainName}",
-                        EmailConfirmed = true,
-                    };
-                    await userManager.CreateAsync(user, "Pa$$w0rd");
-                }
-
-                //[2][5] Manager
-                // ('User', '일반사용자', 'User', '응용 프로그램에 로그인할 수 있는 사용자')
-                ApplicationUser manager = await userManager.FindByEmailAsync($"manager@{domainName}");
-                if (manager == null)
-                {
-                    manager = new ApplicationUser()
-                    {
-                        UserName = $"manager@{domainName}",
-                        Email = $"manager@{domainName}",
-                        EmailConfirmed = true,
-                    };
-                    await userManager.CreateAsync(manager, "Pa$$w0rd");
-                }
-
                 //[3] UsersInRoles: AspNetUserRoles Table
-                await userManager.AddToRoleAsync(administrator, "Administrators");
-                await userManager.AddToRoleAsync(administrator, "Users");
-                await userManager.AddToRoleAsync(guest, "Guests");
-                await userManager.AddToRoleAsync(anonymous, "Guests");
-                await userManager.AddToRoleAsync(user, "Users");
-                await userManager.AddToRoleAsync(manager, "Managers");
+                await userManager.AddToRoleAsync(administrator, Dul.Roles.Administrators.ToString());
+                await userManager.AddToRoleAsync(administrator, Dul.Roles.Users.ToString());
+                await userManager.AddToRoleAsync(guest, Dul.Roles.Guests.ToString());
+                await userManager.AddToRoleAsync(anonymous, Dul.Roles.Guests.ToString());
             }
         }
     }
