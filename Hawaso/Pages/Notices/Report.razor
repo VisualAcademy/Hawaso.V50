@@ -1,0 +1,15 @@
+﻿@page "/Notices/Report"
+
+@*// 최고 관리자 그룹(역할)에 포함된 사용자만 공지사항 관리*@
+@attribute [Authorize(Roles = "Administrators")] 
+
+<h3>Report</h3>
+
+<div class="card">
+    <div class="card-body">
+        <ChartJs.Blazor.Charts.ChartJsBarChart 
+            Config="@_barChartConfig" 
+            Width="600" Height="300">
+        </ChartJs.Blazor.Charts.ChartJsBarChart>
+    </div>
+</div>
