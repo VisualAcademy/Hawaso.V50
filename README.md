@@ -51,4 +51,6 @@ https://www.youtube.com/playlist?list=PLO56HZSjrPTA-EJxyqiN8HzItM7nDEb11
 https://github.com/VisualAcademy/Hawaso.V3X
 
 
+## ASP.NET Core 6.0 버전의 Hawaso는 다음 리포지토리에 있습니다.
 
+https://github.com/VisualAcademy/Hawaso
